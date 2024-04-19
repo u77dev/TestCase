@@ -4,9 +4,9 @@ declare(strict_types=1);
 //==============Не редактировать
 final class DataBase
 {
-    private bool $isConnected = false;
+    private $isConnected = false;   // убрал тип так как пишу тестовое на 7.2.34
 
-    public function connect(): bool
+    public function connect(): string   // здесь поменял тип данных для вывода, так как ретёрн возвращает стринг а не булеан
     {
         sleep(1);
         $this->isConnected = true;
@@ -53,38 +53,81 @@ final class DataBase
 
 class DataBaseHelper
 {
-    public function connectAndFetch($id)
+    private $_db;   // не указал тип данных, так как сейчас на 7.2
+
+    public function connectAndFetch($id): string
     {
-        $dataBase = new DataBase();
-        $dataBase->connect();
-        $result = $dataBase->fetch($id);
+        do {
+            try {
+                $result = $this->getDb()->fetch($id);
+            } catch (Exception $e) {
+                // сюда можно добавить запись в log при дисконекте ($e->getMessage())
+                $this->getDb()->connect();
+            }
+        } while (!isset($result));
         return $result;
     }
 
-    public function connectAndInsert($id)
+    public function connectAndInsert($id): string
     {
-        $dataBase = new DataBase();
-        $dataBase->connect();
-        $result = $dataBase->insert($id);
+        do {
+            try {
+                $result = $this->getDb()->insert($id);
+            } catch (Exception $e) {
+                // сюда можно добавить запись в log при дисконекте ($e->getMessage())
+                $this->getDb()->connect();
+            }
+        } while (!isset($result));
         return $result;
+    }
+
+    public function connectAndBatchInsert(array $data): string
+    {
+        do {
+            try {
+                $result = $this->getDb()->batchInsert($data);
+            } catch (Exception $e) {
+                // сюда можно добавить запись в log при дисконекте ($e->getMessage())
+                $this->getDb()->connect();
+            }
+        } while (!isset($result));
+        return $result;
+    }
+
+    // вынес в отдельный метод чтоб не пладить объекты
+    public function getDb(): DataBase
+    {
+        if ($this->_db === null) {
+            $this->_db = new DataBase();
+            // первый коннект выполняем при первом обращении к объекту БД
+            $this->_db->connect();
+        }
+        return $this->_db;
     }
 }
 
-function step1($dataToFetch)
+function step1($dataToFetch): void
 {
     $dataBaseHelper = new DataBaseHelper();
+    // вынес в переменную чтоб не считать каждый цикл количество элементов
+    $n = count($dataToFetch);
 
-    for ($i = 1; $i < count($dataToFetch); $i++) {
+    // фикс старта по фор
+    for ($i = 0; $i < $n; $i++) {
         print($dataBaseHelper->connectAndFetch($dataToFetch[$i]));
         print(PHP_EOL);
     }
 }
 
-function step2($dataToInsert)
+function step2($dataToInsert): void
 {
     $dataBaseHelper = new DataBaseHelper();
+    // вынес в переменную чтоб не считать каждый цикл количество элементов
+    $n = count($dataToInsert);
 
-    for ($i = 0; $i <= count($dataToInsert); $i++) {
+    // фикс выхода за пределы массива
+    for ($i = 0; $i < $n; $i++) {
+        // тут бы стоит connectAndInsert на connectAndBatchInsert, так как он будет эффективнее, но в этом случае получим другой ответ в консоли
         print($dataBaseHelper->connectAndInsert($dataToInsert[$i]));
         print(PHP_EOL);
     }
@@ -98,3 +141,5 @@ step1($dataToFetch);
 step2($dataToInsert);
 print("Success");
 //==============
+// украшательство )) чтоб было как на скрине ))
+print(PHP_EOL);
